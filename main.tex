@@ -3,6 +3,7 @@
 \usepackage{graphicx}
 \usepackage{amssymb}
 \usepackage[UTF8]{ctex}
+\usepackage[numbers,sort&compress]{natbib}
 \usepackage[colorlinks=true,linkcolor=red,citecolor=green,backref=page]{hyperref}
 
 \begin{document}
@@ -22,7 +23,7 @@
 单纯增加深度神经网络大小的方式有很多弊端。首先，更大的模型意味着更多的参数数量，这会在很多情境下导致过拟合，尤其是训练数据不足的情况下。考虑到训练数据的增加会耗费极大的成本，包括数据采集，数据标注和数据清洗等一系列流程，这会成为影响模型性能的主要瓶颈。而更大的模型也意味着更多的浮点运算次数(FLOPs)，这会导致更长的训练时间，从而使模型调整的难度增加。如果增加的channels并没有被激活（如大多数权重最终接近于零），则浪费了大量计算。由于在应用中的计算资源总是有限的，因此即使主要目标是提高结果质量，计算资源的有效分配也十分重要，不能盲目地增加模型大小。在ILSVRC 2014中获胜的GoogLeNet~\cite{Szegedy2015GoingDW}要比在两年前获胜的Krizhevsky et al.~\cite{krizhevsky2012imagenet}有了$12\times$的参数缩减。这意味着随着深度学习技术的发展，人们不再单调地去追求更大更深的网络。在某些领域，比如物体检测，使用更大的模型或者更深的网络并不会带来最大的收益，反而应借助深层网络和经典计算机视觉领域方法的协同作用，如Girshick等人的R-CNN算法~\cite{girshick2014rich}。
 
 
-\section{Network Architecture 网络结构}
+\section{Network Architecture}
 
 \subsection{Inception}
 Incpetion~\cite{Szegedy2015GoingDW}提出了解决该问题的根本方法是将神经网络完全连接的结构完全转化为稀疏连接，不论是在全连接层还是卷积层。Arora et al.~\cite{Arora2014ProvableBF}的研究指出，如果数据集的概率分布可以通过一个大的且非常稀疏的深度神经网络来表示，则可以通过分析最后一层激活的相关统计来逐层构建最优网络拓扑。从而聚类具有高度相关相关性输出的神经元。尽管严格的数学证明需要非常苛刻的条件限制，但这一陈述与众所周知的Hebbian原理“neurons that fire together, wire together”有一定相通之处，这表明了在实践中即使在一些较为普通的情况，这样的基本思想也适用。
@@ -122,6 +123,29 @@ Inception体系结构提出之后，由于其在各个领域优越的性能，�
 
 值得注意的是，在每个深度可分离卷积中，激活函数ReLU应放在$1 \times 1$卷积层之前，而在深度可分离卷积层之后，应加上批标准化。激活函数前置是深度可分离卷积与极致化的Inception模块的重要区别之一，后者每个卷积层后都会加上非线性激活函数。另外，由多个深度可分离卷积组成的一个Xception module使用了shortcut connection来增强模型表现。
 
+\section{Small and Efficient Networks}
+
+自从AlexNet~\cite{krizhevsky2012imagenet}通过赢得ImageNet挑战：ILSVRC 2012~\cite{russakovsky2015imagenet}推广深度卷积神经网络以来，卷积神经网络已经在计算机视觉的各个领域中无处不在。总的趋势是制造更深入，更复杂的网络，以实现更高的准确性~\cite{simonyan2014very,Szegedy2016RethinkingTI,szegedy2017inception,He2016DeepRL}。然而，这些提高准确度的进步并不一定使网络在尺寸和速度方面更有效率。在许多应用场景中，例如智能机器人，自动驾驶和增强现实等，需要在计算能力有限的平台上及时地执行识别任务。
+
+在这样的潮流下，人们对更小更高效模型的研究日益增多，例如~\cite{jin2014flattened,wang2017factorized,iandola2016squeezenet,wu2016quantized,rastegari2016xnor}。这些研究大致可以归结为压缩预训练网络或者直接训练小网络。
+
+MobileNets~\cite{howard2017mobilenets}主要由最初在~\cite{sifre2014rigid}中引入的深度可分离卷积（depthwise separable convolutions）构建，以减少网络前几层中的计算。Flattened Network~\cite{jin2014flattened}利用完全分解的卷积构建网络。独立于当前的论文，Factorized Networks\cite{wang2017factorized}引入了类似的因式化卷积以及拓扑连接的使用。随后，Xception网络\cite{Chollet2017XceptionDL}演示了如何扩展深度可分离滤波器以重新设计Inception V3网络。另一个小型网络是Squeezenet~\cite{iandola2016squeezenet}，它使用bottleneck方法设计了一个非常小的网络。
+
+获得小型网络的另一种方法是缩减，分解或压缩预训练网络。过去已经有研究提出了基于乘积量化\cite{wu2016quantized}，哈希散列\cite{chen2015compressing}和剪枝，矢量量化和霍夫曼编码\cite{han2015deep}的压缩方法。训练小型网络的另一种方法是模型蒸馏\cite{hinton2015distilling}，它使用更大的网络来监督更小的网络进行训练。另外，使用低位宽网络也是一种获得小型网络的思路~\cite{courbariaux2014training,rastegari2016xnor,hubara2017quantized}。
+
+
+\subsection{MobileNets}
+
+\begin{figure}
+    \centering
+    \includegraphics{res/MobileNets.eps}
+    \caption{Depthwise Separable convolutions with Depthwise and Pointwise layers followed by batchnorm and ReLU.}
+    \label{fig_mobilenets}
+\end{figure}
+
+MobileNets~\cite{howard2017mobilenets}描述了一种高效的网络架构，以便构建尺寸小，延迟低的模型，可以轻松地满足移动和嵌入式视觉应用的设计要求。相对于之前的研究，MobileNets专注于优化延迟，也会产生较小的网络，但先前在小型网络上的许多研究大多只关注网络的大小，但忽略了网络的inference速度。
+
+MobileNets的主要结构为深度可分离卷积。这种结构在Xception中有所提及，其特点是分离空间卷积和卷积，相对于传统卷积大大减少了计算量，由此拥有非常高的性能增益。与Xception有所不同的是，MobileNets在每个深度可分离卷积中的$3 \times 3$卷积和在被称作pointwise的$1 \times 1$卷积后都加入了批标准化和ReLu激活函数，如图\ref{fig_mobilenets}。MobileNets也提供了两个超参数用来为网络瘦身：width multiplier和resolution multiplier。前者按比例减少channels数，后者按比例降低feature map的大小。值得注意的是，前者可以同时降低网络的计算量和参数数量，而后者不能降低参数数量。二者都可以有效地为网络瘦身，但不可避免地会在性能上有一定损失，因此需要在准确率和参数数量以及计算量之间做一个权衡。
 
 
 
