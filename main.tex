@@ -1,10 +1,11 @@
 \documentclass[runningheads]{llncs}
 
 \usepackage{graphicx}
+\usepackage{subfigure}
 \usepackage{amssymb}
-\usepackage[UTF8]{ctex}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage[colorlinks=true,linkcolor=red,citecolor=green,backref=page]{hyperref}
+\usepackage[UTF8]{ctex}
 
 \begin{document}
 \title{卷积神经网络在移动平台上的性能优化}
@@ -18,7 +19,7 @@
 \keywords{计算机视觉 \and 卷积神经网络 \and 量化}
 \end{abstract}
 \section{Introduction}
-随着深度学习技术的迅猛发展以及其在生活中的广泛使用，我们迫切需要提升神经网络的性能。提高深度神经网络性能的最直接方法是增加它们的大小。这包括增加网络的层数以及其宽度（每一层的单元或channels数量）。这是一种简单有效获得更好模型的方法，尤其是在如今训练数据日渐增多的情况下。这样的模型的拟合能力很强，因此在计算机视觉领域中，如ImageNet这样的测试集的准确率越来越高。但这些较大的模型在移动设备或一些其它终端上往往需要较长的时间才可以完成一次预测，而安防等情景上对低延时的需求是十分必要的。因此像海思这样的公司在自己的端上计算模块中加入了神经网络加速模块，其设计针对卷积神经网络等流行计算模式进行优化，使其在低成本情况下获得了最好的计算性能。这样的神经网络加速模块远超CPU的神经网络计算能力使一些较大模型在终端上的应用成为了可能。同时，我们考虑到终端对内存优化的较高要求，需要去构建参数数量很少，运算次数较低的模型，同时又保留其同水平的分类性能。因此我们在网络结构上的优化做了很多研究。
+随着深度学习技术的迅猛发展以及其在生活中的广泛使用，我们迫切需要提升神经网络的性能。提高深度神经网络性能的最直接方法是增加它们的大小。这包括增加网络的层数以及其宽度（每一层的单元或channels数量）。这是一种简单有效获得更好模型的方法，尤其是在如今训练数据日渐增多的情况下。这样的模型的拟合能力很强，因此在计算机视觉领域中，如ImageNet这样的测试集的准确率越来越高。但这些较大的模型在移动设备或一些其它终端上往往需要较长的时间才可以完成一次预测，而安防等情景上对低延时的需求是十分必要的。因此像海思这样的公司在自己的嵌入式计算模块中加入了神经网络加速模块，其设计针对卷积神经网络等流行计算模式进行优化，使其在低成本情况下获得了最好的计算性能。这样的神经网络加速模块远超CPU的神经网络计算能力使一些较大模型在终端上的应用成为了可能。同时，我们考虑到终端对内存优化的较高要求，需要去构建参数数量很少，运算次数较低的模型，同时又保留其同水平的分类性能。因此我们在网络结构上的优化做了很多研究。
 
 单纯增加深度神经网络大小的方式有很多弊端。首先，更大的模型意味着更多的参数数量，这会在很多情境下导致过拟合，尤其是训练数据不足的情况下。考虑到训练数据的增加会耗费极大的成本，包括数据采集，数据标注和数据清洗等一系列流程，这会成为影响模型性能的主要瓶颈。而更大的模型也意味着更多的浮点运算次数(FLOPs)，这会导致更长的训练时间，从而使模型调整的难度增加。如果增加的channels并没有被激活（如大多数权重最终接近于零），则浪费了大量计算。由于在应用中的计算资源总是有限的，因此即使主要目标是提高结果质量，计算资源的有效分配也十分重要，不能盲目地增加模型大小。在ILSVRC 2014中获胜的GoogLeNet~\cite{Szegedy2015GoingDW}要比在两年前获胜的Krizhevsky et al.~\cite{krizhevsky2012imagenet}有了$12\times$的参数缩减。这意味着随着深度学习技术的发展，人们不再单调地去追求更大更深的网络。在某些领域，比如物体检测，使用更大的模型或者更深的网络并不会带来最大的收益，反而应借助深层网络和经典计算机视觉领域方法的协同作用，如Girshick等人的R-CNN算法~\cite{girshick2014rich}。
 
@@ -28,7 +29,7 @@
 \subsection{Inception}
 Incpetion~\cite{Szegedy2015GoingDW}提出了解决该问题的根本方法是将神经网络完全连接的结构完全转化为稀疏连接，不论是在全连接层还是卷积层。Arora et al.~\cite{Arora2014ProvableBF}的研究指出，如果数据集的概率分布可以通过一个大的且非常稀疏的深度神经网络来表示，则可以通过分析最后一层激活的相关统计来逐层构建最优网络拓扑。从而聚类具有高度相关相关性输出的神经元。尽管严格的数学证明需要非常苛刻的条件限制，但这一陈述与众所周知的Hebbian原理“neurons that fire together, wire together”有一定相通之处，这表明了在实践中即使在一些较为普通的情况，这样的基本思想也适用。
 
-但是，当涉及非均匀稀疏数据结构的数值计算时，目前的计算设备的性能会受到极大的影响。即使算术运算的数量减少了一百倍，稀疏的结构会导致Cache无法命中，此时访存的开销会十分重要，以至于构建这样的稀疏矩阵也无法获得可见的性能提升~\cite{krizhevsky2012imagenet,song2014scaling}。结构的均匀性和大量滤波器以及更大的批大小可以对如今的密集计算设备有更好的优化。因此Inception致力于找到一些最优稀疏矩阵的网络拓扑的密集型结构表示来解决这一问题。
+但是，当涉及非均匀稀疏数据结构的数值计算时，目前的计算设备的性能会受到极大的影响。即使算术运算的数量减少了一百倍，稀疏的结构会导致Cache无法命中，此时访存的开销会十分重要，以至于构建这样的稀疏矩阵也无法获得可见的性能提升~\cite{krizhevsky2012imagenet,song2014scaling}。结构的均匀性和大量滤波器以及更大的minibatch大小可以对如今的密集计算设备有更好的优化。因此Inception致力于找到一些最优稀疏矩阵的网络拓扑的密集型结构表示来解决这一问题。
 
 \begin{figure}
     \includegraphics[width=\textwidth]{res/Inception.eps}
@@ -82,7 +83,7 @@ Zero-padding也是在Shortcut分支维度不同时的一种统一维度的方法
     \label{fig_resnet_bottleneck}
 \end{figure}
 
-因此，ResNet~\cite{He2016DeepRL}提出了{\itshape bottleneck}设计来替换原来的building block。如图\ref{fig_resnet_bottleneck}，对于每个残差函数$\mathcal{F}$，我们使用了三个卷积层来代替原有的两层，分别是$1 \times 1$，$3 \times 3$和$1 \times 1$卷积，其中$1 \times 1$层负责减小然后增加（恢复）维度，使$3 \times 3$层作为bottleneck，可以具有较小的输入和输出，大大降低了模型的时间复杂度。
+因此，ResNet~\cite{He2016DeepRL}提出了{\itshape bottleneck}设计来替换原来的building block。如图~\ref{fig_resnet_bottleneck}，对于每个残差函数$\mathcal{F}$，我们使用了三个卷积层来代替原有的两层，分别是$1 \times 1$，$3 \times 3$和$1 \times 1$卷积，其中$1 \times 1$层负责减小然后增加（恢复）维度，使$3 \times 3$层作为bottleneck，可以具有较小的输入和输出，大大降低了模型的时间复杂度。
 
 无参数的identity shortcut对于bottleneck架构尤为重要。如果用projection替换bottleneck中的shortcut分支，会导致时间复杂度和模型大小翻倍，因为shortcut连接到两个$1 \times 1$卷积层的高维端。因此，identity shortcut可以为bottleneck设计带来更高效的网络结构。
 
@@ -108,7 +109,7 @@ Inception体系结构提出之后，由于其在各个领域优越的性能，�
     \label{fig_xception_1}
 \end{figure}
 
-在Inception V3~\cite{Szegedy2016RethinkingTI}的经典结构中，如图\ref{fig_xception_1}(Left)，一个构建模块先由$1 \times 1$卷积核和average pooling来将输入的channel映射到多个分支，随后数据经过bottleneck结构卷积核并通过concat操作组成输出端。
+在Inception V3~\cite{Szegedy2016RethinkingTI}的经典结构中，如图~\ref{fig_xception_1}(Left)，一个构建模块先由$1 \times 1$卷积核和average pooling来将输入的channel映射到多个分支，随后数据经过bottleneck结构卷积核并通过concat操作组成输出端。
 
 \begin{figure}
     \centering
@@ -117,7 +118,7 @@ Inception体系结构提出之后，由于其在各个领域优越的性能，�
     \label{fig_xception_2}
 \end{figure}
 
-如果我们加以简化，使用$1 \times 1$卷积核做分离操作，$1 \times 1$卷积核的channels分为多组，每组分别与一个$3 \times 3$卷积核相连，如图\ref{fig_xception_1}(Right)。这样大大减少了参数数量，因为每个$3 \times 3$卷积核对应的channel数大大缩减。如果将这样的思想极限化，每一个$1 \times 1$卷积输出的channel都与一个$3 \times 3$卷积相连，即每组的大小为1，就可以得到一个极致化的Inception模块，如图\ref{fig_xception_2}。这里使用$1 \times 1$卷积提取channels之间的特征，并将其分离开，之后再由$3 \times 3$卷积学习分离开的空间上的特征。这种模块在深度学习框架中被称作channel-wise。
+如果我们加以简化，使用$1 \times 1$卷积核做分离操作，$1 \times 1$卷积核的channels分为多组，每组分别与一个$3 \times 3$卷积核相连，如图~\ref{fig_xception_1}(Right)。这样大大减少了参数数量，因为每个$3 \times 3$卷积核对应的channel数大大缩减。如果将这样的思想极限化，每一个$1 \times 1$卷积输出的channel都与一个$3 \times 3$卷积相连，即每组的大小为1，就可以得到一个极致化的Inception模块，如图~\ref{fig_xception_2}。这里使用$1 \times 1$卷积提取channels之间的特征，并将其分离开，之后再由$3 \times 3$卷积学习分离开的空间上的特征。这种模块在深度学习框架中被称作channel-wise。
 
 这样的模块给予了Xception~\cite{Chollet2017XceptionDL}很多启发。在Xception的被称作深度可分离卷积的基础结构中，首先使用depthwise卷积将输入的每一个channel分别使用一个空间上的卷积，之后使用被称作pointwise的1x1卷积核，将这些channels映射到深度可分离卷积的输出channels上。这一点与极致化的Inception模块有所区别，后者是先使用$1 \times 1$卷积核分离各个channel，再使用空间上的卷积来学习其它特征。这样的模块在深度学习框架中被称作separable convolution。
 
@@ -125,14 +126,13 @@ Inception体系结构提出之后，由于其在各个领域优越的性能，�
 
 \section{Small and Efficient Networks}
 
-自从AlexNet~\cite{krizhevsky2012imagenet}通过赢得ImageNet挑战：ILSVRC 2012~\cite{russakovsky2015imagenet}推广深度卷积神经网络以来，卷积神经网络已经在计算机视觉的各个领域中无处不在。总的趋势是制造更深入，更复杂的网络，以实现更高的准确性~\cite{simonyan2014very,Szegedy2016RethinkingTI,szegedy2017inception,He2016DeepRL}。然而，这些提高准确度的进步并不一定使网络在尺寸和速度方面更有效率。在许多应用场景中，例如智能机器人，自动驾驶和增强现实等，需要在计算能力有限的平台上及时地执行识别任务。
-
-在这样的潮流下，人们对更小更高效模型的研究日益增多，例如~\cite{jin2014flattened,wang2017factorized,iandola2016squeezenet,wu2016quantized,rastegari2016xnor}。这些研究大致可以归结为压缩预训练网络或者直接训练小网络。
+自从AlexNet~\cite{krizhevsky2012imagenet}通过赢得ImageNet挑战：ILSVRC 2012~\cite{russakovsky2015imagenet}推广深度卷积神经网络以来，卷积神经网络已经在计算机视觉的各个领域中无处不在。总的趋势是制造层数更深，更复杂的网络，以实现更高的准确性~\cite{simonyan2014very,Szegedy2016RethinkingTI,szegedy2017inception,He2016DeepRL}。然而，这些在准确度方面的进步并不一定使网络在尺寸和速度方面更有效率。而今，在许多应用场景中，例如智能机器人，自动驾驶和增强现实等，需要在计算能力有限的平台上及时地执行识别任务。在这样的潮流下，人们对更小更高效模型的研究日益增多，例如~\cite{jin2014flattened,wang2017factorized,iandola2016squeezenet,wu2016quantized,rastegari2016xnor}。这些研究大致可以归结为压缩预训练网络或者直接训练小网络。
 
 MobileNets~\cite{howard2017mobilenets}主要由最初在~\cite{sifre2014rigid}中引入的深度可分离卷积（depthwise separable convolutions）构建，以减少网络前几层中的计算。Flattened Network~\cite{jin2014flattened}利用完全分解的卷积构建网络。独立于当前的论文，Factorized Networks\cite{wang2017factorized}引入了类似的因式化卷积以及拓扑连接的使用。随后，Xception网络\cite{Chollet2017XceptionDL}演示了如何扩展深度可分离滤波器以重新设计Inception V3网络。另一个小型网络是Squeezenet~\cite{iandola2016squeezenet}，它使用bottleneck方法设计了一个非常小的网络。
 
 获得小型网络的另一种方法是缩减，分解或压缩预训练网络。过去已经有研究提出了基于乘积量化\cite{wu2016quantized}，哈希散列\cite{chen2015compressing}和剪枝，矢量量化和霍夫曼编码\cite{han2015deep}的压缩方法。训练小型网络的另一种方法是模型蒸馏\cite{hinton2015distilling}，它使用更大的网络来监督更小的网络进行训练。另外，使用低位宽网络也是一种获得小型网络的思路~\cite{courbariaux2014training,rastegari2016xnor,hubara2017quantized}。
 
+最近，有研究~\cite{zoph2018learning,xie2017genetic,real2017large,zoph2016neural}开辟了将遗传算法和强化学习等优化方法引入网络结构搜索的新方向。模型搜索通过自动优化网络结构来使网络的性能和延迟做到最好的平衡，但是会造成最终的网络结构非常复杂，适应性差。而MobileNet V2~\cite{sandler2018mobilenetv2}这样的网络追求找到开发更高效的简明的神经网络的指导性的方法。MobileNet V2基于上文提到的MobileNet V1，使用与~\cite{zhang2018shufflenet, wang2016design}类似的方法，可以简单的改善其性能，显著提升了准确性，但保留了MobileNet V1的简单性。
 
 \subsection{MobileNets}
 
@@ -145,7 +145,50 @@ MobileNets~\cite{howard2017mobilenets}主要由最初在~\cite{sifre2014rigid}�
 
 MobileNets~\cite{howard2017mobilenets}描述了一种高效的网络架构，以便构建尺寸小，延迟低的模型，可以轻松地满足移动和嵌入式视觉应用的设计要求。相对于之前的研究，MobileNets专注于优化延迟，也会产生较小的网络，但先前在小型网络上的许多研究大多只关注网络的大小，但忽略了网络的inference速度。
 
-MobileNets的主要结构为深度可分离卷积。这种结构在Xception中有所提及，其特点是分离空间卷积和卷积，相对于传统卷积大大减少了计算量，由此拥有非常高的性能增益。与Xception有所不同的是，MobileNets在每个深度可分离卷积中的$3 \times 3$卷积和在被称作pointwise的$1 \times 1$卷积后都加入了批标准化和ReLu激活函数，如图\ref{fig_mobilenets}。MobileNets也提供了两个超参数用来为网络瘦身：width multiplier和resolution multiplier。前者按比例减少channels数，后者按比例降低feature map的大小。值得注意的是，前者可以同时降低网络的计算量和参数数量，而后者不能降低参数数量。二者都可以有效地为网络瘦身，但不可避免地会在性能上有一定损失，因此需要在准确率和参数数量以及计算量之间做一个权衡。
+MobileNets的主要结构为深度可分离卷积。这种结构在Xception中有所提及，其特点是分离空间卷积和卷积，相对于传统卷积大大减少了计算量，由此拥有非常高的性能增益。与Xception有所不同的是，MobileNets在每个深度可分离卷积中的$3 \times 3$卷积和在被称作pointwise的$1 \times 1$卷积后都加入了批标准化和ReLu激活函数，如图~\ref{fig_mobilenets}。MobileNets也提供了两个超参数用来为网络瘦身：width multiplier和resolution multiplier。前者按比例减少channels数，后者按比例降低feature map的大小。值得注意的是，前者可以同时降低网络的计算量和参数数量，而后者不能降低参数数量。二者都可以有效地为网络瘦身，但不可避免地会在性能上有一定损失，因此需要在准确率和参数数量以及计算量之间做一个权衡。
+
+\subsection{MobileNet V2}
+
+MobileNet V2~\cite{sandler2018mobilenetv2}同样大量地使用了深度可分离卷积。但与MobileNet V1形似VGGNet~\cite{simonyan2014very}的直筒结构不同的是，它引入了{\itshape Residual Connection}，并将深度可分离卷积核ResNet~\cite{He2016DeepRL}中使用的bottleneck结构相结合，提出了其核心架构{\itshape Inverted Residuals}。
+
+\begin{figure}
+    \centering
+    \subfigure[Residual block]{
+        \label{fig_mobilenetv2_res:a}
+        \includegraphics[width=0.45\textwidth]{res/MobileNetV2_Residual_block.jpg}
+    }
+    \subfigure[Inverted residual block]{
+        \label{fig_mobilenetv2_res:b}
+        \includegraphics[width=0.45\textwidth]{res/MobileNetV2_Inverted_residual_block.jpg}
+    }
+    \caption{Residual block和inverted residual的不同。对角阴影的层不使用激活函数，使用不同厚度来表示本层的相对通道数。}
+    \label{fig_mobilenetv2_res}
+\end{figure}
+
+\subsubsection{Inverted Residuals}
+在ResNet中使用的bottleneck结构为了降低计算量，结尾的$1 \times 1$卷积核拥有较大的通道数量并与后一层相连，而在开头与上一个模块大通道卷积层相连的$1 \times 1$卷积层便只能设计为更低的通道数，从而防止运算量的陡增。另外中间占运算量较大的$3 \times 3$卷积通道数量也相对较少，直观上是一个两边厚中间薄的结构。但在MobileNet V2中，由于深度可分离卷积的引入，$3 \times 3$卷积的运算量大幅下降，则我们可以通过加强$3 \times 3$卷积的宽度使其拥有更好的表现，如图~\ref{fig_mobilenetv2_res}，注意其在入口层的$1 \times 1$卷积层之前没有使用非线性激活函数，后文会着重分析。另外，在大部分情况下，该结构的倍增系数{\itshape t}是6，这意味着每个block内中间层的通道数量是输入数据通道数的6倍，倍增系数仅在第一个bottleneck中为1。
+
+\begin{figure}
+    \centering
+    \subfigure[MobileNets]{
+        \label{fig_mobilenetv2:a}
+        \includegraphics[width=0.2\textwidth]{res/MobileNetV2_v1.png}
+    }
+    \subfigure[MobileNet V2]{
+        \label{fig_mobilenetv2:b}
+        \includegraphics[width=0.4\textwidth]{res/MobileNetV2_v2.png}
+    }
+    \caption{对比MobileNet两个版本的网络结构。}
+    \label{fig_mobilenetv2}
+\end{figure}
+
+\subsubsection{Linear Bottlenecks}
+MobileNet V2在每个bottleneck模块的入口处的$1 \times 1$卷积层之前选择了不加入非线性激活函数，如图~\ref{fig_mobilenetv2:b}。事实上，在Xception中已经有实验证明，在深度可分离卷积后的卷积层不宜加入非线性激活函数，但如图~\ref{fig_mobilenetv2:a}所示，在MobileNets中仍然使用了ReLU函数进行激活。
+
+其认为，ReLU激活函数只能在输入是整个输入空间的低维子空间时才能保留完整的信息。这是因为ReLU函数在输出大于0时为线性函数，而部分数值为负的信息在这里直接被丢掉了。但如果这一层的通道数足够多，那么或许有一部分通道会保留下这些信息，因此输出通道数较少的最后一个layer不宜使用ReLU激活函数。这在实验中得到了证明，使用线性激活函数会导致准确度有数个百分点的提升。此外，有研究~\cite{han2017deep}在传统的残差模块的输入前移除了非线性激活函数，导致了其网络性能的提升，也证明了这一观点。
+
+另外值得注意的是，为了针对移动设备和嵌入式设备的内存需求和运算需求，MobileNet V2使用的ReLU函数为ReLU6。它在ReLU的基础上，使输入在大于6时输出等于6。这是针对移动设备的数据类型而设计的，移动设备在低精度下有更好的计算性能，主要为float16或者int8。限制数据的动态范围会提升其在低位宽下的数据表达精度，防止溢出造成的精度丢失。
+
 
 
 
